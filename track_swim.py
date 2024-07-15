@@ -6,6 +6,12 @@ import numpy as np
 # Add deep_sort import
 from deep_sort_pytorch.deep_sort import DeepSort
 
+import deep_sort_pytorch.deep_sort.sort.track as track
+import importlib
+
+# Reload the track module to ensure changes are recognized
+importlib.reload(track)
+
 import os
 from tqdm import tqdm
 
