@@ -183,11 +183,11 @@ def processFunction(im, module, class_names, device, deepsort):
 def main(video_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if device.type == 'cuda':
-        model_path = 'best.torchscript_gpu.pt'
+        model_path = 'yolov5/best.torchscript_gpu.pt'
     else:
-        model_path = 'best.torchscript_cpu.pt'
+        model_path = 'yolov5/best.torchscript_cpu.pt'
     
-    names_path = 'coco.names'
+    names_path = 'yolov5/coco.names'
     
 
     module = torch.jit.load(model_path).to(device).eval()
