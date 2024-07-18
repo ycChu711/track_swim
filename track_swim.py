@@ -120,7 +120,7 @@ def load_lane_coordinates(path):
             lane_coordinates[name] = coordinates
     return lane_coordinates
 
-def process_function(im, module, class_names, device, deepsort, areas, id_area):
+def process_function(im, module, class_names, device, deepsort, areas, id_to_lane_mapping, original_to_current_id_mapping):
     conf_thres, iou_thres = 0.4, 0.5
     img_input, pad_info = letterbox_image(im, (640, 640))
     pad_w, pad_h, scale = pad_info
@@ -147,16 +147,13 @@ def process_function(im, module, class_names, device, deepsort, areas, id_area):
                 center_x, center_y = get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom)
 
                 object_area_name = li.assign_objects_to_areas(center_x, center_y, areas)
-
+                
+                # print identity type
                 identity = int(identity)
+                # Update identity based on lane change
+                updated_identity = update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping)
 
-                if identity not in id_area.keys():
-                    id_area[identity] = object_area_name
-                elif identity in id_area.keys() and object_area_name != id_area[identity]:
-                    remove_track(deepsort, identity)
-                    continue
-
-                draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], identity)
+                draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], identity, updated_identity, id_to_lane_mapping)
 
     return im
 
@@ -215,25 +212,47 @@ def get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom):
 
     return center_x, center_y
 
-def remove_track(deepsort, identity):
-    '''
-    Description:
-    Remove the track from the tracker and the dictionary of track IDs and areas.
-    '''
-    for track in deepsort.tracker.tracks:
-        if track.track_id == identity:
-            track.mark_missed()
-            deepsort.tracker.tracks.remove(track)
-            break
+def generate_unused_id(deepsort):
+    # Start with the highest existing track ID + 1 or 1 if no tracks exist
+    new_id = max([track.track_id for track in deepsort.tracker.tracks], default=0) + 1
+    used_ids = {track.track_id for track in deepsort.tracker.tracks}
+    
+    # Increment new_id until an unused one is found
+    while new_id in used_ids:
+        new_id += 1
+    
+    return new_id
 
-def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, identity):
+def get_current_id_for_track(original_id, original_to_current_id_mapping):
+    return original_to_current_id_mapping.get(original_id, original_id)
+
+def update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping):
+    current_id = get_current_id_for_track(identity, original_to_current_id_mapping)
+    if current_id not in id_to_lane_mapping or object_area_name != id_to_lane_mapping[current_id]:
+        # Assign a new ID and update mappings
+        new_id = generate_unused_id(deepsort)
+        original_to_current_id_mapping[identity] = new_id
+        id_to_lane_mapping[new_id] = object_area_name
+        return new_id
+    return current_id
+
+def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, identity, curr_identity, id_to_lane_mapping):
     '''
     Description:
     Draw the bounding box and label on the image.
     '''
     cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), (0, 0, 255), 2)
-    label = f'{class_name}, ID: {identity}'
-    cv2.putText(im, label, (int(bbox_left), int(bbox_top) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    # include original id and current id and lane i label
+    label = f'{class_name}, Original ID: {identity},\nCurrent ID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}'
+    #cv2.putText(im, label, (int(bbox_left), int(bbox_top) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    lines = label.split('\n')
+    start_x = int(bbox_left)
+    start_y = int(bbox_top) - 10
+    line_height = 20  # Adjust based on font size
+
+    for i, line in enumerate(lines):
+        line_y = start_y - (len(lines) - i) * line_height
+        cv2.putText(im, line, (start_x, line_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
 def main(video_path, lane_coordinates_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -268,13 +287,14 @@ def main(video_path, lane_coordinates_path):
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    id_area = {}
+    id_to_lane_mapping = {}
+    original_to_current_id_mapping = {}
     with tqdm(total=total_frames, desc="Processing Video", unit="frame") as pbar:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            processed_frame = process_function(frame, module, class_names, device, deepsort, lane_areas, id_area)
+            processed_frame = process_function(frame, module, class_names, device, deepsort, lane_areas, id_to_lane_mapping, original_to_current_id_mapping)
             video_writer.write(processed_frame)
             pbar.update(1)
             if cv2.waitKey(1) & 0xFF == ord('q'):
