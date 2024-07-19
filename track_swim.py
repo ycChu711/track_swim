@@ -212,14 +212,11 @@ def get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom):
 
     return center_x, center_y
 
-def generate_unused_id(deepsort):
-    # Start with the highest existing track ID + 1 or 1 if no tracks exist
-    new_id = max([track.track_id for track in deepsort.tracker.tracks], default=0) + 1
-    used_ids = {track.track_id for track in deepsort.tracker.tracks}
-    
-    # Increment new_id until an unused one is found
-    while new_id in used_ids:
-        new_id += 1
+def generate_unused_id(id_to_lane_mapping, deepsort):
+    # Combine IDs from id_to_lane_mapping and DeepSORT's tracker
+    used_ids = set(id_to_lane_mapping.keys()) | {track.track_id for track in deepsort.tracker.tracks}
+    # Start with the highest existing ID + 1 or 1 if no IDs exist
+    new_id = max(used_ids, default=0) + 1
     
     return new_id
 
@@ -228,9 +225,11 @@ def get_current_id_for_track(original_id, original_to_current_id_mapping):
 
 def update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping):
     current_id = get_current_id_for_track(identity, original_to_current_id_mapping)
-    if current_id not in id_to_lane_mapping or object_area_name != id_to_lane_mapping[current_id]:
+    if current_id not in id_to_lane_mapping:
+        id_to_lane_mapping[current_id] = object_area_name
+    elif object_area_name != id_to_lane_mapping[current_id]:
         # Assign a new ID and update mappings
-        new_id = generate_unused_id(deepsort)
+        new_id = generate_unused_id(id_to_lane_mapping, deepsort)
         original_to_current_id_mapping[identity] = new_id
         id_to_lane_mapping[new_id] = object_area_name
         return new_id
@@ -243,7 +242,7 @@ def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_na
     '''
     cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), (0, 0, 255), 2)
     # include original id and current id and lane i label
-    label = f'{class_name}, Original ID: {identity},\nCurrent ID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}'
+    label = f'{class_name}, \nID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}'
     #cv2.putText(im, label, (int(bbox_left), int(bbox_top) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     lines = label.split('\n')
     start_x = int(bbox_left)
