@@ -8,6 +8,7 @@ source venv/bin/activate
 
 # Install dependencies
 pip install torch torchvision opencv-python-headless pyyaml scipy matplotlib lapx filterpy seaborn gdown tqdm
+pip install shapely
 
 # Clone deep_sort_pytorch repository
 git clone https://github.com/ZQPei/deep_sort_pytorch.git
