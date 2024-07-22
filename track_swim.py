@@ -138,8 +138,10 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
     if bbox_xywh.numel() > 0:
         outputs, _ = deepsort.update(bbox_xywh, confs, class_idx, im)
 
-        if len(outputs) > 0:
-            for j, output in enumerate(outputs):
+        filtered_outputs = filter_overlapping_detections(outputs, iou_threshold=0.5)
+
+        if len(filtered_outputs) > 0:
+            for j, output in enumerate(filtered_outputs):
                 bbox_left, bbox_top, bbox_right, bbox_bottom, class_id, identity = output
 
                 bbox_left, bbox_top, bbox_right, bbox_bottom = fix_offset(bbox_left, bbox_top, bbox_right, bbox_bottom)
@@ -153,7 +155,7 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
                 # Update identity based on lane change
                 updated_identity = update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping)
 
-                draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], identity, updated_identity, id_to_lane_mapping)
+                draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping)
 
     return im
 
@@ -181,6 +183,43 @@ def process_result(result):
     class_idx = torch.Tensor(class_idx)
 
     return bbox_xywh, confs, class_idx
+
+def iou(box_a, box_b):
+    # Determine the coordinates of the intersection rectangle
+    x_a = max(box_a[0], box_b[0])
+    y_a = max(box_a[1], box_b[1])
+    x_b = min(box_a[2], box_b[2])
+    y_b = min(box_a[3], box_b[3])
+
+    # Compute the area of intersection
+    inter_area = max(0, x_b - x_a) * max(0, y_b - y_a)
+
+    # Compute the area of both the prediction and ground-truth rectangles
+    box_a_area = (box_a[2] - box_a[0]) * (box_a[3] - box_a[1])
+    box_b_area = (box_b[2] - box_b[0]) * (box_b[3] - box_b[1])
+
+    # Compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    iou = inter_area / float(box_a_area + box_b_area - inter_area)
+
+    return iou
+
+def filter_overlapping_detections(detections, iou_threshold=0.5):
+    filtered_detections = []
+    for i, det1 in enumerate(detections):
+        keep = True
+        for j, det2 in enumerate(detections):
+            if i >= j:
+                continue
+            if iou(det1[:4], det2[:4]) > iou_threshold:
+                # Keep the detection with the higher confidence score
+                keep = det1[4] > det2[4]
+                if not keep:
+                    break
+        if keep:
+            filtered_detections.append(det1)
+    return filtered_detections
 
 def fix_offset(bbox_left, bbox_top, bbox_right, bbox_bottom):
     '''
@@ -235,7 +274,7 @@ def update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, ori
         return new_id
     return current_id
 
-def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, identity, curr_identity, id_to_lane_mapping):
+def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, curr_identity, id_to_lane_mapping):
     '''
     Description:
     Draw the bounding box and label on the image.
