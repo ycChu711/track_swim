@@ -7,8 +7,11 @@ import os
 # extract video frame
 def extract_frame(video_path, frame_number):
     '''
-    video_path: str, path to the video file
-    frame_number: int, frame number to extract
+    Description:
+    Extract a frame from a video file
+    Arguments:
+        video_path: str, path to the video file
+        frame_number: int, frame number to extract
     '''
     cap = cv2.VideoCapture(video_path)
     for _ in range(frame_number):
@@ -22,11 +25,14 @@ named_coordinates = {}
 
 def get_coordinates(event, x, y, flags, param):
     '''
-    event: int, type of mouse event
-    x: int, x-coordinate of the mouse event
-    y: int, y-coordinate of the mouse event
-    flags: int, any flags passed with the event
-    param: any parameters passed with the event
+    Description:
+    Mouse callback function to capture the coordinates
+    Arguments:
+        event: int, mouse event
+        x: int, x-coordinate of the mouse pointer
+        y: int, y-coordinate of the mouse pointer
+        flags: int, flags
+        param: int, parameters
     '''
     if event == cv2.EVENT_LBUTTONDOWN:  # Check if the left mouse button was clicked
         print(f"Coordinates: ({x}, {y})")
@@ -35,18 +41,23 @@ def get_coordinates(event, x, y, flags, param):
 
 def save_named_coordinates(name):
     '''
-    name: str, name of the selected coordinates
+    Description:
+    Save the selected coordinates with a name
+    Arguments:
+        name: str, name of the selected coordinates
     '''
     global named_coordinates
     named_coordinates[name] = coordinates.copy()
     coordinates.clear()  # Clear the current list for new selections
 
 
-# use extracted frame to manually select coordinates for lane detection
 def get_lane_coordinates(video_path, frame_number):
     '''
-    video_path: str, path to the video file
-    frame_number: int, frame number to extract
+    Description:
+    Manually select coordinates for lane detection
+    Arguments:
+        video_path: str, path to the video file
+        frame_number: int, frame number to extract
     '''
     extract_frame(video_path, frame_number)
     image_path = f'{frame_number}_frame.png'
@@ -90,22 +101,31 @@ def get_lane_coordinates(video_path, frame_number):
     print(f"Lane coordinates saved to {save_path}")
 
 
-# Convert the selected coordinates in a dictionary to a dictionary of polygons
 def convert_coordinates_to_polygons(coordinates_dict):
     '''
-    coordinates_dict: dict, dictionary of areas with their coordinates
+    Description:
+    Convert the selected coordinates in a dictionary to a dictionary of polygons
+    Arguments:
+        coordinates_dict: dict, dictionary of selected coordinates
+    Returns:
+        polygons: dict, dictionary of polygons
     '''
     polygons = {}
     for name, coordinates in coordinates_dict.items():
         polygons[name] = Polygon(coordinates)
     return polygons
 
-# Assign objects to areas based on their coordinates
+
 def assign_objects_to_areas(center_x, center_y, areas):
     '''
-    center_x: int, x-coordinate of the object
-    center_y: int, y-coordinate of the object
-    areas: dict, dictionary of areas with their polygons
+    Description:
+    Assign objects to areas based on their coordinates
+    Arguments:
+        center_x: int, x-coordinate of the object
+        center_y: int, y-coordinate of the object
+        areas: dict, dictionary of areas with polygon coordinates
+    Returns:
+        area_name: str, name of the area
     '''
     point = Point(center_x, center_y)
     for area_name, polygon in areas.items():
