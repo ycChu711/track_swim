@@ -11,6 +11,16 @@ deepsort = DeepSort("deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.t7")
 
 
 def process_result(result):
+    '''
+    Description:
+    Process the detection results to extract bounding box coordinates, confidence scores, and class indices
+    Arguments:
+        result: list, list of dictionaries containing the detection results
+    Returns:
+        bbox_xywh: torch.Tensor, tensor containing the bounding box coordinates
+        confs: torch.Tensor, tensor containing the confidence scores
+        class_idx: torch.Tensor, tensor containing the class indices
+    '''
     bbox_xywh = []
     confs = []
     class_idx = []
@@ -35,7 +45,17 @@ def process_result(result):
 
     return bbox_xywh, confs, class_idx
 
+
 def iou(box_a, box_b):
+    ''' 
+    Description:
+    Calculate the intersection over union (IoU) of two bounding boxes
+    Arguments:
+        box_a: list, bounding box coordinates [x1, y1, x2, y2]
+        box_b: list, bounding box coordinates [x1, y1, x2, y2]
+    Returns:
+        iou: float, intersection over union (IoU) value
+    '''
     # Determine the coordinates of the intersection rectangle
     x_a = max(box_a[0], box_b[0])
     y_a = max(box_a[1], box_b[1])
@@ -57,6 +77,15 @@ def iou(box_a, box_b):
     return iou
 
 def filter_overlapping_detections(detections, iou_threshold=0.5):
+    '''
+    Description:
+    Filter overlapping detections based on the IoU threshold
+    Arguments:
+        detections: list, list of detections
+        iou_threshold: float, IoU threshold
+    Returns:
+        filtered_detections: list, list of filtered detections
+    '''
     filtered_detections = []
     for i, det1 in enumerate(detections):
         keep = True
@@ -96,6 +125,16 @@ def get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom):
     '''
     Description:
     Get the center point of the bounding box.
+
+    Arguments:
+        bbox_left: int, x-coordinate of the top-left corner of the bounding box
+        bbox_top: int, y-coordinate of the top-left corner of the bounding box
+        bbox_right: int, x-coordinate of the bottom-right corner of the bounding box
+        bbox_bottom: int, y-coordinate of the bottom-right corner of the bounding box
+    
+    Returns:
+        center_x: int, x-coordinate of the center point
+        center_y: int, y-coordinate of the center point
     '''
     center_x = (bbox_left + bbox_right) / 2
     center_y = (bbox_top + bbox_bottom) / 2
@@ -103,6 +142,15 @@ def get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom):
     return center_x, center_y
 
 def generate_unused_id(id_to_lane_mapping, deepsort):
+    '''
+    Description:
+    Generate a new ID that is not used by any existing track
+    Arguments:
+        id_to_lane_mapping: dict, mapping of track IDs to lane names
+        deepsort: DeepSort, DeepSORT tracker object
+    Returns:
+        new_id: int, new track ID
+    '''
     # Combine IDs from id_to_lane_mapping and DeepSORT's tracker
     used_ids = set(id_to_lane_mapping.keys()) | {track.track_id for track in deepsort.tracker.tracks}
     # Start with the highest existing ID + 1 or 1 if no IDs exist
@@ -111,9 +159,30 @@ def generate_unused_id(id_to_lane_mapping, deepsort):
     return new_id
 
 def get_current_id_for_track(original_id, original_to_current_id_mapping):
+    '''
+    Description:
+    Get the current ID for a track based on the original ID
+    Arguments:
+        original_id: int, original track ID
+        original_to_current_id_mapping: dict, mapping of original track IDs to current track IDs
+    Returns:
+        current_id: int, current track ID
+    '''
     return original_to_current_id_mapping.get(original_id, original_id)
 
 def update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping):
+    '''
+    Description:
+    Update the track ID and lane name based on the object area
+    
+    Arguments:
+        identity: int, original track ID
+        object_area_name: str, name of the object area
+        id_to_lane_mapping: dict, mapping of track IDs to lane names
+        original_to_current_id_mapping: dict, mapping of original track IDs to current track IDs
+    Returns:
+        updated_identity: int, updated track ID
+    '''
     current_id = get_current_id_for_track(identity, original_to_current_id_mapping)
     if current_id not in id_to_lane_mapping:
         id_to_lane_mapping[current_id] = object_area_name
@@ -129,6 +198,16 @@ def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_na
     '''
     Description:
     Draw the bounding box and label on the image.
+
+    Arguments:
+        im: np.array, input image
+        bbox_left: int, x-coordinate of the top-left corner of the bounding box
+        bbox_top: int, y-coordinate of the top-left corner of the bounding box
+        bbox_right: int, x-coordinate of the bottom-right corner of the bounding box
+        bbox_bottom: int, y-coordinate of the bottom-right corner of the bounding box
+        class_name: str, class name
+        curr_identity: int, current track ID
+        id_to_lane_mapping: dict, mapping of track IDs to lane names
     '''
     cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), (0, 0, 255), 2)
     # include original id and current id and lane i label
