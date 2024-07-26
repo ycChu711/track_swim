@@ -26,8 +26,7 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
 
     if bbox_xywh.numel() > 0:
         outputs, _ = deepsort.update(bbox_xywh, confs, class_idx, im)
-
-        filtered_outputs = filter_overlapping_detections(outputs, iou_threshold=0.5)
+        filtered_outputs = filter_overlapping_detections(outputs)
 
         if len(filtered_outputs) > 0:
             for j, output in enumerate(filtered_outputs):
