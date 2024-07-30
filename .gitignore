@@ -4,4 +4,5 @@ venv/
 # Ignore the cloned repository - deep_sort_pytorch
 deep_sort_pytorch/
 
-
+# ignore output_video files
+output_video/
