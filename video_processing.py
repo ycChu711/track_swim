@@ -16,7 +16,7 @@ from tracking import  (
     draw_bounding_box)
 from lane_utils import load_lane_coordinates
 
-def process_function(im, module, class_names, device, deepsort, areas, id_to_lane_mapping, original_to_current_id_mapping, frame_num):
+def process_function(im, module, class_names, device, deepsort, areas, id_to_lane_mapping, original_to_current_id_mapping):
     conf_thres, iou_thres = 0.4, 0.5
     img_input, pad_info = letterbox_image(im, (640, 640))
     pad_w, pad_h, scale = pad_info
@@ -78,7 +78,7 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
                 updated_identity = update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping)
                 
                 if class_id == 0:    # only draw bounding box for dangerous class
-                    draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping, frame_num)
+                    draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping)
     return im
 
 def main(video_path, lane_coordinates_path):
@@ -116,14 +116,12 @@ def main(video_path, lane_coordinates_path):
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     id_to_lane_mapping = {}
     original_to_current_id_mapping = {}
-    frame_num = 0
     with tqdm(total=total_frames, desc="Processing Video", unit="frame") as pbar:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            processed_frame = process_function(frame, module, class_names, device, deepsort, lane_areas, id_to_lane_mapping, original_to_current_id_mapping, frame_num)
-            frame_num += 1
+            processed_frame = process_function(frame, module, class_names, device, deepsort, lane_areas, id_to_lane_mapping, original_to_current_id_mapping)
             video_writer.write(processed_frame)
             pbar.update(1)
             if cv2.waitKey(1) & 0xFF == ord('q'):

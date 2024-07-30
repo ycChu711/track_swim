@@ -204,7 +204,7 @@ def update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, ori
         return new_id
     return current_id
 
-def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, curr_identity, id_to_lane_mapping, frame_num):
+def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, curr_identity, id_to_lane_mapping):
     '''
     Description:
     Draw the bounding box and label on the image.
@@ -227,7 +227,7 @@ def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_na
     # Draw the bounding box in red
     cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), box_color, 2)
     # include original id and current id and lane i label
-    label = f'{class_name}, \nID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}, \nFrame: {frame_num}'
+    label = f'{class_name}, \nID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}'
     #cv2.putText(im, label, (int(bbox_left), int(bbox_top) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     lines = label.split('\n')
     start_x = int(bbox_left)
