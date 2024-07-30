@@ -16,7 +16,7 @@ from tracking import  (
     draw_bounding_box)
 from lane_utils import load_lane_coordinates
 
-def process_function(im, module, class_names, device, deepsort, areas, id_to_lane_mapping, original_to_current_id_mapping):
+def process_function(im, module, class_names, device, deepsort, areas, id_to_lane_mapping, original_to_current_id_mapping, frame_num):
     conf_thres, iou_thres = 0.4, 0.5
     img_input, pad_info = letterbox_image(im, (640, 640))
     pad_w, pad_h, scale = pad_info
@@ -63,12 +63,11 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
             if distances[closest_index] < distance_threshold:
                 original_class_id = index_to_class_id.get(closest_index, class_id)
                 distance_filtered_outputs.append((bbox_left, bbox_top, bbox_right, bbox_bottom, original_class_id, identity))
-
         # Perform filter_overlapping_detections with class_id considered
-        filtered_outputs, original_indices = filter_overlapping_detections(distance_filtered_outputs, iou_threshold=0.5, return_indices=True)
+        filtered_outputs = filter_overlapping_detections(distance_filtered_outputs, iou_threshold=0.3)
 
         if len(filtered_outputs) > 0:
-            for j, (output, original_index) in enumerate(zip(filtered_outputs, original_indices)):
+            for j, output in enumerate(filtered_outputs):
                 bbox_left, bbox_top, bbox_right, bbox_bottom, class_id, identity = output
 
                 center_x, center_y = get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom)
@@ -79,7 +78,7 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
                 updated_identity = update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping)
                 
                 if class_id == 0:    # only draw bounding box for dangerous class
-                    draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping)
+                    draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping, frame_num)
     return im
 
 def main(video_path, lane_coordinates_path):
@@ -117,12 +116,14 @@ def main(video_path, lane_coordinates_path):
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     id_to_lane_mapping = {}
     original_to_current_id_mapping = {}
+    frame_num = 0
     with tqdm(total=total_frames, desc="Processing Video", unit="frame") as pbar:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            processed_frame = process_function(frame, module, class_names, device, deepsort, lane_areas, id_to_lane_mapping, original_to_current_id_mapping)
+            processed_frame = process_function(frame, module, class_names, device, deepsort, lane_areas, id_to_lane_mapping, original_to_current_id_mapping, frame_num)
+            frame_num += 1
             video_writer.write(processed_frame)
             pbar.update(1)
             if cv2.waitKey(1) & 0xFF == ord('q'):

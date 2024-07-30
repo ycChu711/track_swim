@@ -76,39 +76,40 @@ def iou(box_a, box_b):
 
     return iou
 
-def filter_overlapping_detections(detections, iou_threshold=0.5, return_indices=False):
+def filter_overlapping_detections(detections, iou_threshold=0.3):
     '''
     Description:
     Filter overlapping detections based on the IoU threshold and class_id
     Arguments:
         detections: list, list of detections
         iou_threshold: float, IoU threshold
-        return_indices: bool, whether to return the original indices of the filtered detections
     Returns:
         filtered_detections: list, list of filtered detections
-        original_indices: list, list of original indices of the filtered detections (if return_indices is True)
     '''
     filtered_detections = []
-    original_indices = []
+    skip_indices = set()
     for i, det1 in enumerate(detections):
+        if i in skip_indices:
+            continue
+
         keep = True
         for j, det2 in enumerate(detections):
-            if i >= j:
+            if i >= j or j in skip_indices:
                 continue
             # Compare only detections with the same class_id
             if det1[4] == det2[4] and iou(det1[:4], det2[:4]) > iou_threshold:
-                # Keep the detection with the higher confidence score
-                keep = det1[5] > det2[5]
-                if not keep:
+                # Keep the detection with the larger area
+                area1 = (det1[2] - det1[0]) * (det1[3] - det1[1])
+                area2 = (det2[2] - det2[0]) * (det2[3] - det2[1])
+                if area1 <= area2:
+                    keep = False
+                    skip_indices.add(i)
                     break
+                else:
+                    skip_indices.add(j)
         if keep:
             filtered_detections.append(det1)
-            original_indices.append(i)
-    
-    if return_indices:
-        return filtered_detections, original_indices
-    else:
-        return filtered_detections
+    return filtered_detections
 
 def fix_offset(bbox_left, bbox_top, bbox_right, bbox_bottom):
     '''
@@ -203,7 +204,7 @@ def update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, ori
         return new_id
     return current_id
 
-def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, curr_identity, id_to_lane_mapping):
+def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_name, curr_identity, id_to_lane_mapping, frame_num):
     '''
     Description:
     Draw the bounding box and label on the image.
@@ -226,7 +227,7 @@ def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_na
     # Draw the bounding box in red
     cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), box_color, 2)
     # include original id and current id and lane i label
-    label = f'{class_name}, \nID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}'
+    label = f'{class_name}, \nID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}, \nFrame: {frame_num}'
     #cv2.putText(im, label, (int(bbox_left), int(bbox_top) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     lines = label.split('\n')
     start_x = int(bbox_left)
