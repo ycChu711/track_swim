@@ -76,10 +76,10 @@ def iou(box_a, box_b):
 
     return iou
 
-def filter_overlapping_detections(detections, iou_threshold=0.5):
+def filter_overlapping_detections(detections, iou_threshold=0.3):
     '''
     Description:
-    Filter overlapping detections based on the IoU threshold
+    Filter overlapping detections based on the IoU threshold and class_id
     Arguments:
         detections: list, list of detections
         iou_threshold: float, IoU threshold
@@ -87,16 +87,26 @@ def filter_overlapping_detections(detections, iou_threshold=0.5):
         filtered_detections: list, list of filtered detections
     '''
     filtered_detections = []
+    skip_indices = set()
     for i, det1 in enumerate(detections):
+        if i in skip_indices:
+            continue
+
         keep = True
         for j, det2 in enumerate(detections):
-            if i >= j:
+            if i >= j or j in skip_indices:
                 continue
-            if iou(det1[:4], det2[:4]) > iou_threshold:
-                # Keep the detection with the higher confidence score
-                keep = det1[4] > det2[4]
-                if not keep:
+            # Compare only detections with the same class_id
+            if det1[4] == det2[4] and iou(det1[:4], det2[:4]) > iou_threshold:
+                # Keep the detection with the larger area
+                area1 = (det1[2] - det1[0]) * (det1[3] - det1[1])
+                area2 = (det2[2] - det2[0]) * (det2[3] - det2[1])
+                if area1 <= area2:
+                    keep = False
+                    skip_indices.add(i)
                     break
+                else:
+                    skip_indices.add(j)
         if keep:
             filtered_detections.append(det1)
     return filtered_detections
@@ -209,7 +219,13 @@ def draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_na
         curr_identity: int, current track ID
         id_to_lane_mapping: dict, mapping of track IDs to lane names
     '''
-    cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), (0, 0, 255), 2)
+    # Set box color based on class name, red for dangerous, green for swim
+    if class_name == 'dangerous':
+        box_color = (0, 0, 255)
+    elif class_name == 'swim':
+        box_color = (0, 255, 0)
+    # Draw the bounding box in red
+    cv2.rectangle(im, (int(bbox_left), int(bbox_top)), (int(bbox_right), int(bbox_bottom)), box_color, 2)
     # include original id and current id and lane i label
     label = f'{class_name}, \nID: {curr_identity}, \nLane: {id_to_lane_mapping[curr_identity]}'
     #cv2.putText(im, label, (int(bbox_left), int(bbox_top) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)

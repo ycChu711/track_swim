@@ -6,7 +6,14 @@ from tqdm import tqdm
 import lane_identification.lane_identification as li
 
 from utils import load_names, letterbox_image, post_processing
-from tracking import deepsort, process_result, filter_overlapping_detections, fix_offset, get_center_point, update_track_id_and_lane, draw_bounding_box
+from tracking import  (
+    deepsort, 
+    process_result, 
+    filter_overlapping_detections, 
+    fix_offset, 
+    get_center_point, 
+    update_track_id_and_lane, 
+    draw_bounding_box)
 from lane_utils import load_lane_coordinates
 
 def process_function(im, module, class_names, device, deepsort, areas, id_to_lane_mapping, original_to_current_id_mapping):
@@ -16,36 +23,62 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
     img_input = cv2.cvtColor(img_input, cv2.COLOR_BGR2RGB)
     img_input = img_input.astype(np.float32) / 255.0
     tensor_img = torch.from_numpy(img_input).unsqueeze(0).permute(0, 3, 1, 2).to(device)
+    distance_threshold = 35  # Distance threshold for associating the original detection with the deepsort output
 
     with torch.no_grad():
         detections = module(tensor_img)[0]
 
     result = post_processing(detections.to(device), pad_w, pad_h, scale, im.shape[:2], conf_thres, iou_thres)
-
     bbox_xywh, confs, class_idx = process_result(result)
 
     if bbox_xywh.numel() > 0:
-        outputs, _ = deepsort.update(bbox_xywh, confs, class_idx, im)
 
-        filtered_outputs = filter_overlapping_detections(outputs, iou_threshold=0.5)
+        # Create dummy class IDs (e.g., all 2) for tracking
+        dummy_class_idx = torch.full_like(class_idx, 2)
+    
+        # Update deepsort with dummy class IDs
+        outputs, _ = deepsort.update(bbox_xywh, confs, dummy_class_idx, im)
+        
+        # Create a dictionary to map original indices to class IDs
+        index_to_class_id = {i: int(class_idx[i].item()) for i in range(len(class_idx))}
+
+        # get center point of the original bounding box, center point is the first two elements of bbox (x, y)
+        original_centers = [(bbox[0], bbox[1]) for bbox in bbox_xywh]
+
+        distance_filtered_outputs = []
+
+        # Give back original class_id to the output based on closest center points
+        for i, output in enumerate(outputs):
+            bbox_left, bbox_top, bbox_right, bbox_bottom, class_id, identity = output
+            bbox_left, bbox_top, bbox_right, bbox_bottom = fix_offset(bbox_left, bbox_top, bbox_right, bbox_bottom)
+            
+            center_x, center_y = get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom)
+
+            # Calculate distances between the deep sort center point and original center points
+            distances = [np.linalg.norm(np.array([center_x, center_y]) - np.array(original_center)) for original_center in original_centers]
+
+            # Get the index of the closest center point
+            closest_index = np.argmin(distances)
+            
+            if distances[closest_index] < distance_threshold:
+                original_class_id = index_to_class_id.get(closest_index, class_id)
+                distance_filtered_outputs.append((bbox_left, bbox_top, bbox_right, bbox_bottom, original_class_id, identity))
+        # Perform filter_overlapping_detections with class_id considered
+        filtered_outputs = filter_overlapping_detections(distance_filtered_outputs, iou_threshold=0.3)
 
         if len(filtered_outputs) > 0:
             for j, output in enumerate(filtered_outputs):
                 bbox_left, bbox_top, bbox_right, bbox_bottom, class_id, identity = output
 
-                bbox_left, bbox_top, bbox_right, bbox_bottom = fix_offset(bbox_left, bbox_top, bbox_right, bbox_bottom)
-
                 center_x, center_y = get_center_point(bbox_left, bbox_top, bbox_right, bbox_bottom)
 
                 object_area_name = li.assign_objects_to_areas(center_x, center_y, areas)
-                
-                # print identity type
-                identity = int(identity)
+            
                 # Update identity based on lane change
                 updated_identity = update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping)
-
-                draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping)
-
+                
+                if class_id == 0:    # only draw bounding box for dangerous class
+                    draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping)
     return im
 
 def main(video_path, lane_coordinates_path):
