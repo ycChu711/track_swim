@@ -78,7 +78,7 @@ def process_function(im, module, class_names, device, deepsort, areas, id_to_lan
                 # Update identity based on lane change
                 updated_identity = update_track_id_and_lane(identity, object_area_name, id_to_lane_mapping, original_to_current_id_mapping)
                 
-                if original_class_id == 0:    # only draw bounding box for dangerous class
+                if class_id == 0:    # only draw bounding box for dangerous class
                     draw_bounding_box(im, bbox_left, bbox_top, bbox_right, bbox_bottom, class_names[class_id], updated_identity, id_to_lane_mapping)
     return im
 
