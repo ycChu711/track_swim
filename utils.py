@@ -133,32 +133,6 @@ def post_processing(detections, pad_w, pad_h, scale, img_shape, conf_thres, iou_
     scale_coordinates(result, pad_w, pad_h, scale, img_shape)
     return [result]
 
-
-def demo(img, detections, class_names):
-    '''
-    Description:
-    Display the detection results on the image
-    Arguments:
-        img: np.array, input image
-        detections: list, list of dictionaries containing bounding box coordinates, scores, and class indices
-        class_names: list, list of class names
-    '''
-    if detections:
-        for det in detections[0]:
-            bbox = det['bbox']
-            score = det['score']
-            class_idx = det['class_idx']
-
-            # Ensure the bounding box coordinates are integers
-            x1, y1, x2, y2 = map(int, bbox)
-
-            # Debug: Print the bounding box coordinates
-            # print(f"Bounding box: ({x1}, {y1}), ({x2}, {y2})")
-
-            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-            label = f"{class_names[class_idx]} {score:.2f}"
-            cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
 def xywh2xyxy(x):
     '''
     Description:
